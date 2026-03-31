@@ -34,6 +34,14 @@ import { RegisteredGroup } from './types.js';
 const OUTPUT_START_MARKER = '---NANOCLAW_OUTPUT_START---';
 const OUTPUT_END_MARKER = '---NANOCLAW_OUTPUT_END---';
 
+// IPC dirs must be world-writable so the container (non-root user) can
+// delete processed input files. mkdirSync mode is masked by umask, so
+// we chmod explicitly after creation.
+function mkdirPublic(dirPath: string): void {
+  fs.mkdirSync(dirPath, { recursive: true });
+  fs.chmodSync(dirPath, 0o777);
+}
+
 export interface ContainerInput {
   prompt: string;
   sessionId?: string;
@@ -123,7 +131,7 @@ function buildVolumeMounts(
     group.folder,
     '.claude',
   );
-  fs.mkdirSync(groupSessionsDir, { recursive: true });
+  mkdirPublic(groupSessionsDir);
   const settingsFile = path.join(groupSessionsDir, 'settings.json');
   if (!fs.existsSync(settingsFile)) {
     fs.writeFileSync(
@@ -179,9 +187,9 @@ function buildVolumeMounts(
   // Per-group IPC namespace: each group gets its own IPC directory
   // This prevents cross-group privilege escalation via IPC
   const groupIpcDir = resolveGroupIpcPath(group.folder);
-  fs.mkdirSync(path.join(groupIpcDir, 'messages'), { recursive: true });
-  fs.mkdirSync(path.join(groupIpcDir, 'tasks'), { recursive: true });
-  fs.mkdirSync(path.join(groupIpcDir, 'input'), { recursive: true });
+  mkdirPublic(path.join(groupIpcDir, 'messages'));
+  mkdirPublic(path.join(groupIpcDir, 'tasks'));
+  mkdirPublic(path.join(groupIpcDir, 'input'));
   mounts.push({
     hostPath: groupIpcDir,
     containerPath: '/workspace/ipc',
@@ -680,7 +688,7 @@ export function writeTasksSnapshot(
 ): void {
   // Write filtered tasks to the group's IPC directory
   const groupIpcDir = resolveGroupIpcPath(groupFolder);
-  fs.mkdirSync(groupIpcDir, { recursive: true });
+  mkdirPublic(groupIpcDir);
 
   // Main sees all tasks, others only see their own
   const filteredTasks = isMain
@@ -710,7 +718,7 @@ export function writeGroupsSnapshot(
   _registeredJids: Set<string>,
 ): void {
   const groupIpcDir = resolveGroupIpcPath(groupFolder);
-  fs.mkdirSync(groupIpcDir, { recursive: true });
+  mkdirPublic(groupIpcDir);
 
   // Main sees all groups; others see nothing (they can't activate groups)
   const visibleGroups = isMain ? groups : [];
