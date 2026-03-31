@@ -16,6 +16,7 @@ vi.mock('fs', async () => {
     default: {
       ...actual,
       mkdirSync: vi.fn(),
+      chmodSync: vi.fn(),
       writeFileSync: vi.fn(),
       renameSync: vi.fn(),
     },
