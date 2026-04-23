@@ -229,7 +229,13 @@ export class TelegramChannel implements Channel {
             'Unknown';
           const isGroup =
             ctx.chat.type === 'group' || ctx.chat.type === 'supergroup';
-          this.opts.onChatMetadata(chatJid, timestamp, undefined, 'telegram', isGroup);
+          this.opts.onChatMetadata(
+            chatJid,
+            timestamp,
+            undefined,
+            'telegram',
+            isGroup,
+          );
           this.opts.onMessage(chatJid, {
             id: ctx.message.message_id.toString(),
             chat_jid: chatJid,
@@ -240,7 +246,10 @@ export class TelegramChannel implements Channel {
             is_from_me: false,
             thread_id: ctx.message.message_thread_id?.toString(),
           });
-          logger.info({ chatJid, path: processed.relativePath }, 'Processed Telegram image');
+          logger.info(
+            { chatJid, path: processed.relativePath },
+            'Processed Telegram image',
+          );
           return;
         }
       } catch (err) {

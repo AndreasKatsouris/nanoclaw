@@ -289,43 +289,49 @@ async function processGroupMessages(chatJid: string): Promise<boolean> {
   let hadError = false;
   let outputSentToUser = false;
 
-  const output = await runAgent(group, prompt, chatJid, async (result) => {
-    // Streaming output callback — called for each agent result
-    if (result.result) {
-      const raw =
-        typeof result.result === 'string'
-          ? result.result
-          : JSON.stringify(result.result);
-      // Strip <internal>...</internal> blocks — agent uses these for internal reasoning
-      const text = raw.replace(/<internal>[\s\S]*?<\/internal>/g, '').trim();
-      logger.info({ group: group.name }, `Agent output: ${raw.length} chars`);
-      if (text) {
-        // Suppress stdout result if the agent already sent messages via IPC
-        // (send_message tool). This prevents duplicate responses — the agent
-        // is told to use <internal> tags but doesn't always comply.
-        if (ipcMessagesSent.has(chatJid)) {
-          logger.info(
-            { group: group.name },
-            'Suppressing stdout result — IPC messages already sent to user',
-          );
-          outputSentToUser = true;
-        } else {
-          await channel.sendMessage(chatJid, text);
-          outputSentToUser = true;
+  const output = await runAgent(
+    group,
+    prompt,
+    chatJid,
+    async (result) => {
+      // Streaming output callback — called for each agent result
+      if (result.result) {
+        const raw =
+          typeof result.result === 'string'
+            ? result.result
+            : JSON.stringify(result.result);
+        // Strip <internal>...</internal> blocks — agent uses these for internal reasoning
+        const text = raw.replace(/<internal>[\s\S]*?<\/internal>/g, '').trim();
+        logger.info({ group: group.name }, `Agent output: ${raw.length} chars`);
+        if (text) {
+          // Suppress stdout result if the agent already sent messages via IPC
+          // (send_message tool). This prevents duplicate responses — the agent
+          // is told to use <internal> tags but doesn't always comply.
+          if (ipcMessagesSent.has(chatJid)) {
+            logger.info(
+              { group: group.name },
+              'Suppressing stdout result — IPC messages already sent to user',
+            );
+            outputSentToUser = true;
+          } else {
+            await channel.sendMessage(chatJid, text);
+            outputSentToUser = true;
+          }
         }
+        // Only reset idle timer on actual results, not session-update markers (result: null)
+        resetIdleTimer();
       }
-      // Only reset idle timer on actual results, not session-update markers (result: null)
-      resetIdleTimer();
-    }
 
-    if (result.status === 'success') {
-      queue.notifyIdle(chatJid);
-    }
+      if (result.status === 'success') {
+        queue.notifyIdle(chatJid);
+      }
 
-    if (result.status === 'error') {
-      hadError = true;
-    }
-  }, imageAttachments.length ? imageAttachments : undefined);
+      if (result.status === 'error') {
+        hadError = true;
+      }
+    },
+    imageAttachments.length ? imageAttachments : undefined,
+  );
 
   await channel.setTyping?.(chatJid, false);
   if (idleTimer) clearTimeout(idleTimer);
