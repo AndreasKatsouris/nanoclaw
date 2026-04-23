@@ -48,6 +48,7 @@ import {
 } from './db.js';
 import { GroupQueue } from './group-queue.js';
 import { resolveGroupFolderPath } from './group-folder.js';
+import { parseImageReferences } from './image.js';
 import { startIpcWatcher } from './ipc.js';
 import { findChannel, formatMessages, formatOutbound } from './router.js';
 import {
@@ -76,6 +77,10 @@ let messageLoopRunning = false;
 
 const channels: Channel[] = [];
 const queue = new GroupQueue();
+
+// Track JIDs that have received IPC messages during the current container session.
+// Used to suppress duplicate stdout results when the agent already sent via send_message.
+const ipcMessagesSent = new Set<string>();
 
 const onecli = new OneCLI({ url: ONECLI_URL });
 
@@ -278,6 +283,8 @@ async function processGroupMessages(chatJid: string): Promise<boolean> {
     }, IDLE_TIMEOUT);
   };
 
+  const imageAttachments = parseImageReferences(missedMessages);
+
   await channel.setTyping?.(chatJid, true);
   let hadError = false;
   let outputSentToUser = false;
@@ -293,8 +300,19 @@ async function processGroupMessages(chatJid: string): Promise<boolean> {
       const text = raw.replace(/<internal>[\s\S]*?<\/internal>/g, '').trim();
       logger.info({ group: group.name }, `Agent output: ${raw.length} chars`);
       if (text) {
-        await channel.sendMessage(chatJid, text);
-        outputSentToUser = true;
+        // Suppress stdout result if the agent already sent messages via IPC
+        // (send_message tool). This prevents duplicate responses — the agent
+        // is told to use <internal> tags but doesn't always comply.
+        if (ipcMessagesSent.has(chatJid)) {
+          logger.info(
+            { group: group.name },
+            'Suppressing stdout result — IPC messages already sent to user',
+          );
+          outputSentToUser = true;
+        } else {
+          await channel.sendMessage(chatJid, text);
+          outputSentToUser = true;
+        }
       }
       // Only reset idle timer on actual results, not session-update markers (result: null)
       resetIdleTimer();
@@ -307,10 +325,11 @@ async function processGroupMessages(chatJid: string): Promise<boolean> {
     if (result.status === 'error') {
       hadError = true;
     }
-  });
+  }, imageAttachments.length ? imageAttachments : undefined);
 
   await channel.setTyping?.(chatJid, false);
   if (idleTimer) clearTimeout(idleTimer);
+  ipcMessagesSent.delete(chatJid);
 
   if (output === 'error' || hadError) {
     // If we already sent output to the user, don't roll back the cursor —
@@ -340,6 +359,7 @@ async function runAgent(
   prompt: string,
   chatJid: string,
   onOutput?: (output: ContainerOutput) => Promise<void>,
+  imageAttachments?: Array<{ relativePath: string; mediaType: string }>,
 ): Promise<'success' | 'error'> {
   const isMain = group.isMain === true;
   const sessionId = sessions[group.folder];
@@ -391,6 +411,7 @@ async function runAgent(
         chatJid,
         isMain,
         assistantName: ASSISTANT_NAME,
+        imageAttachments,
       },
       (proc, containerName) =>
         queue.registerProcess(chatJid, proc, containerName, group.folder),
@@ -715,6 +736,7 @@ async function main(): Promise<void> {
     sendMessage: (jid, text) => {
       const channel = findChannel(channels, jid);
       if (!channel) throw new Error(`No channel for JID: ${jid}`);
+      ipcMessagesSent.add(jid);
       return channel.sendMessage(jid, text);
     },
     registeredGroups: () => registeredGroups,
