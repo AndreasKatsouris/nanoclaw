@@ -14,6 +14,7 @@ import './cli.js';
 
 // slack
 
-// telegram — re-add via /add-telegram (v2 Chat SDK adapter)
+// telegram
+import './telegram.js';
 
 // whatsapp
