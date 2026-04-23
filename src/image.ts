@@ -15,11 +15,7 @@ export interface ImageAttachment {
   mediaType: string;
 }
 
-export async function processImage(
-  buffer: Buffer,
-  groupDir: string,
-  caption: string,
-): Promise<ProcessedImage | null> {
+export async function processImage(buffer: Buffer, groupDir: string, caption: string): Promise<ProcessedImage | null> {
   if (!buffer || buffer.length === 0) return null;
 
   const resized = await sharp(buffer)
@@ -38,16 +34,12 @@ export async function processImage(
   fs.writeFileSync(filePath, resized);
 
   const relativePath = `attachments/${filename}`;
-  const content = caption
-    ? `[Image: ${relativePath}] ${caption}`
-    : `[Image: ${relativePath}]`;
+  const content = caption ? `[Image: ${relativePath}] ${caption}` : `[Image: ${relativePath}]`;
 
   return { content, relativePath };
 }
 
-export function parseImageReferences(
-  messages: Array<{ content: string }>,
-): ImageAttachment[] {
+export function parseImageReferences(messages: Array<{ content: string }>): ImageAttachment[] {
   const refs: ImageAttachment[] = [];
   for (const msg of messages) {
     let match: RegExpExecArray | null;

@@ -10,12 +10,10 @@ import './cli.js';
 
 // discord
 
-// gmail
-import './gmail.js';
+// gmail — re-add via /add-gmail (v2 Chat SDK adapter)
 
 // slack
 
-// telegram
-import './telegram.js';
+// telegram — re-add via /add-telegram (v2 Chat SDK adapter)
 
 // whatsapp
