@@ -133,6 +133,15 @@ export function initSessionFolder(agentGroupId: string, sessionId: string): void
 
   ensureSchema(inboundDbPath(agentGroupId, sessionId), 'inbound');
   ensureSchema(outboundDbPath(agentGroupId, sessionId), 'outbound');
+
+  // Make session dir world-writable so the container user (node, uid 1000)
+  // can write to outbound.db, heartbeat, and outbox.
+  for (const p of [dir, path.join(dir, 'outbox')]) {
+    fs.chmodSync(p, 0o777);
+  }
+  for (const p of [inboundDbPath(agentGroupId, sessionId), outboundDbPath(agentGroupId, sessionId)]) {
+    fs.chmodSync(p, 0o666);
+  }
 }
 
 /**

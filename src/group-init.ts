@@ -82,6 +82,14 @@ export function initGroupFilesystem(group: AgentGroup, opts?: { instructions?: s
   }
 
   if (initialized.length > 0) {
+    // Make group dir and Claude state writable by container user (node, uid 1000)
+    for (const d of [groupDir, claudeDir, skillsDst]) {
+      if (fs.existsSync(d)) fs.chmodSync(d, 0o777);
+    }
+    for (const f of [claudeLocalFile, settingsFile]) {
+      if (fs.existsSync(f)) fs.chmodSync(f, 0o666);
+    }
+
     log.info('Initialized group filesystem', {
       group: group.name,
       folder: group.folder,
