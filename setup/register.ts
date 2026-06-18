@@ -21,6 +21,7 @@ import { isValidGroupFolder } from '../src/group-folder.js';
 import { initGroupFilesystem } from '../src/group-init.js';
 import { log } from '../src/log.js';
 import { resolveSession, writeSessionMessage } from '../src/session-manager.js';
+import type { MessagingGroupAgent } from '../src/types.js';
 import { emitStatus } from './status.js';
 
 interface RegisterArgs {
@@ -167,19 +168,21 @@ export async function run(args: string[]): Promise<void> {
   if (!existing) {
     newlyWired = true;
     const mgaId = generateId('mga');
-    const triggerRules = parsed.trigger
-      ? JSON.stringify({
-          pattern: parsed.trigger,
-          requiresTrigger: parsed.requiresTrigger,
-        })
-      : null;
+    // Map the legacy --trigger / requiresTrigger inputs onto the v2 engage
+    // axes introduced by migration 010 (engage_mode/engage_pattern/
+    // sender_scope/ignored_message_policy replaced trigger_rules JSON +
+    // response_scope). A supplied trigger becomes a 'pattern' regex; absent
+    // one, default to "respond to every message" via the '.' sentinel —
+    // preserving register's historical response_scope='all' behavior.
     createMessagingGroupAgent({
       id: mgaId,
       messaging_group_id: messagingGroup.id,
       agent_group_id: agentGroup.id,
-      trigger_rules: triggerRules,
-      response_scope: 'all',
-      session_mode: parsed.sessionMode,
+      engage_mode: 'pattern',
+      engage_pattern: parsed.trigger || '.',
+      sender_scope: 'all',
+      ignored_message_policy: 'drop',
+      session_mode: parsed.sessionMode as MessagingGroupAgent['session_mode'],
       priority: 0,
       created_at: new Date().toISOString(),
     });
