@@ -419,6 +419,17 @@ async function buildContainerArgs(
     log.warn('OneCLI gateway error — container will have no credentials', { containerName, err });
   }
 
+  // Per-group env from container.json — applied AFTER the OneCLI gateway so
+  // group config takes precedence on collision (Docker uses the last -e for a
+  // given key). Lets a group route to a third-party Anthropic-compatible
+  // endpoint (ANTHROPIC_BASE_URL/ANTHROPIC_AUTH_TOKEN/NO_PROXY) without the
+  // gateway's credentials clobbering it.
+  if (containerConfig.env) {
+    for (const [key, value] of Object.entries(containerConfig.env)) {
+      args.push('-e', `${key}=${value}`);
+    }
+  }
+
   // Host gateway
   args.push(...hostGatewayArgs());
 

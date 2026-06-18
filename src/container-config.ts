@@ -47,6 +47,13 @@ export interface ContainerConfig {
   agentGroupId?: string;
   /** Max messages per prompt. Falls back to code default if unset. */
   maxMessagesPerPrompt?: number;
+  /**
+   * Extra environment variables injected into the container at spawn time.
+   * Applied AFTER the OneCLI gateway env so group config wins on collision —
+   * e.g. point an agent group at a third-party Anthropic-compatible endpoint
+   * via ANTHROPIC_BASE_URL / ANTHROPIC_AUTH_TOKEN / NO_PROXY.
+   */
+  env?: Record<string, string>;
 }
 
 function emptyConfig(): ContainerConfig {
@@ -87,6 +94,7 @@ export function readContainerConfig(folder: string): ContainerConfig {
       assistantName: raw.assistantName,
       agentGroupId: raw.agentGroupId,
       maxMessagesPerPrompt: raw.maxMessagesPerPrompt,
+      env: raw.env,
     };
   } catch (err) {
     console.error(`[container-config] failed to parse ${p}: ${String(err)}`);
