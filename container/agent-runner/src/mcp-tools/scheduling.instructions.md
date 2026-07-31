@@ -26,6 +26,12 @@ bash -c 'node --input-type=module -e "
 "'
 ```
 
+### Avoid duplicate messages when the task already used `send_message`
+
+When a scheduled task's prompt has you deliver the result via `mcp__nanoclaw__send_message` (e.g. a formatted report), your turn-end final text will *also* be delivered as a separate outbound message — that's the scratchpad → channel fallback in the runtime. The user sees both, which looks like a duplicate.
+
+If you've already sent the user-facing payload via `send_message`, wrap your *entire* final response in `<internal>...</internal>` tags. The runtime strips internal blocks before deciding whether to emit the trailing chat message, so wrapping the whole final response suppresses the duplicate while still leaving your reasoning in the transcript.
+
 ### When NOT to use scripts
 
 If a task requires your judgment every time (daily briefings, reminders, reports), skip the script — just use a regular prompt. Do not attempt to do things like sentiment analysis or advanced nlp in scripts.

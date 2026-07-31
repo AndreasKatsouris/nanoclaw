@@ -1,7 +1,7 @@
 ---
 name: telegram-comms
 description: Telegram channel specialist for NanoClaw. Use for debugging Telegram message flow, inspecting bot state, reading channel logs, and diagnosing delivery or registration issues. Restricted to read-only tools — cannot modify source files.
-model: haiku
+model: opus
 tools: Bash, Glob, Grep, Read
 ---
 
