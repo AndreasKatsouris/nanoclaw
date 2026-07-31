@@ -145,6 +145,44 @@ describe('routing', () => {
     expect(routing.threadId).toBe('thread-456');
     expect(routing.inReplyTo).toBe('m1');
   });
+
+  it('should prefer a real channel over an agent-channel note in the same batch', () => {
+    // A system/approval note lands on the internal `agent` channel first,
+    // then the user speaks. Replies must go to the user, not back at the
+    // agent group — otherwise the sibling session sees its own agent group
+    // messaging it out of nowhere.
+    getInboundDb()
+      .prepare(
+        `INSERT INTO messages_in (id, kind, timestamp, status, platform_id, channel_type, thread_id, content)
+       VALUES ('appr-note-1', 'chat', datetime('now'), 'pending', 'ag-abc', 'agent', NULL, '{"text":"MCP server added."}')`,
+      )
+      .run();
+    getInboundDb()
+      .prepare(
+        `INSERT INTO messages_in (id, kind, timestamp, status, platform_id, channel_type, thread_id, content)
+       VALUES ('m2', 'chat', datetime('now'), 'pending', 'telegram:123', 'telegram', NULL, '{"text":"hello"}')`,
+      )
+      .run();
+
+    const routing = extractRouting(getPendingMessages());
+    expect(routing.channelType).toBe('telegram');
+    expect(routing.platformId).toBe('telegram:123');
+    expect(routing.inReplyTo).toBe('m2');
+  });
+
+  it('should still route agent-only batches over the agent channel', () => {
+    getInboundDb()
+      .prepare(
+        `INSERT INTO messages_in (id, kind, timestamp, status, platform_id, channel_type, thread_id, content)
+       VALUES ('a2a-1', 'chat', datetime('now'), 'pending', 'ag-abc', 'agent', NULL, '{"text":"ping"}')`,
+      )
+      .run();
+
+    const routing = extractRouting(getPendingMessages());
+    expect(routing.channelType).toBe('agent');
+    expect(routing.platformId).toBe('ag-abc');
+    expect(routing.inReplyTo).toBe('a2a-1');
+  });
 });
 
 describe('mock provider', () => {

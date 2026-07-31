@@ -268,6 +268,17 @@ async function processQuery(
       const newIds = newMessages.map((m) => m.id);
       markProcessing(newIds);
 
+      // Re-point reply routing at the follow-up. `routing` was captured from
+      // the batch that opened this query, which may have been a system note
+      // or a task wake with no channel of its own — and a query stays open
+      // across many turns. Without this, every later reply is addressed to
+      // whatever opened the query rather than to whoever just spoke.
+      // Mutated in place so the caller's error path sees the update too.
+      const followUpRouting = extractRouting(newMessages);
+      if (followUpRouting.channelType && followUpRouting.platformId) {
+        Object.assign(routing, followUpRouting);
+      }
+
       const prompt = formatMessages(newMessages);
       log(`Pushing ${newMessages.length} follow-up message(s) into active query`);
       query.push(prompt);

@@ -90,15 +90,23 @@ export interface RoutingContext {
 
 /**
  * Extract routing context from a batch of messages.
- * Uses the first message's routing fields.
+ *
+ * Prefers the first message that arrived on a real channel (a human-facing
+ * adapter, not the internal `agent` a2a channel). Agent-channel rows are
+ * system notes and agent-to-agent traffic — letting one of those seed the
+ * batch routing sends every reply in the turn back at an agent group instead
+ * of the user, which reads on the receiving side as a stranger messaging the
+ * session. Falls back to the first message so a genuinely a2a-only batch
+ * still replies over the agent channel.
  */
 export function extractRouting(messages: MessageInRow[]): RoutingContext {
-  const first = messages[0];
+  const preferred = messages.find((m) => m.channel_type && m.channel_type !== 'agent' && m.platform_id);
+  const source = preferred ?? messages[0];
   return {
-    platformId: first?.platform_id ?? null,
-    channelType: first?.channel_type ?? null,
-    threadId: first?.thread_id ?? null,
-    inReplyTo: first?.id ?? null,
+    platformId: source?.platform_id ?? null,
+    channelType: source?.channel_type ?? null,
+    threadId: source?.thread_id ?? null,
+    inReplyTo: source?.id ?? null,
   };
 }
 
