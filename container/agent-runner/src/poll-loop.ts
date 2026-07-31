@@ -3,6 +3,7 @@ import { getPendingMessages, markProcessing, markCompleted, type MessageInRow } 
 import { writeMessageOut } from './db/messages-out.js';
 import { touchHeartbeat, clearStaleProcessingAcks } from './db/connection.js';
 import { getStoredSessionId, setStoredSessionId, clearStoredSessionId } from './db/session-state.js';
+import { getSessionRouting } from './db/session-routing.js';
 import { formatMessages, extractRouting, categorizeMessage, isClearCommand, stripInternalTags, type RoutingContext } from './formatter.js';
 import type { AgentProvider, AgentQuery, ProviderEvent } from './providers/types.js';
 
@@ -374,15 +375,31 @@ function dispatchResultText(text: string, routing: RoutingContext): void {
   // the session's originating channel (from session_routing) if available,
   // otherwise fall back to the single destination.
   if (sent === 0 && scratchpad) {
-    if (routing.channelType && routing.platformId) {
+    // Prefer the batch routing, but when the query was woken by a task or
+    // other channel-less message the batch routing is empty. In that case
+    // fall back to the session's committed default routing (session_routing).
+    // Without this, follow-up DMs pushed into a task-started query with more
+    // than one wired destination match neither shortcut and get dropped.
+    let channelType = routing.channelType;
+    let platformId = routing.platformId;
+    let threadId = routing.threadId;
+    if (!channelType || !platformId) {
+      const sessionRouting = getSessionRouting();
+      if (sessionRouting.channel_type && sessionRouting.platform_id) {
+        channelType = sessionRouting.channel_type;
+        platformId = sessionRouting.platform_id;
+        threadId = routing.threadId ?? sessionRouting.thread_id;
+      }
+    }
+    if (channelType && platformId) {
       // Reply to the channel/thread the message came from
       writeMessageOut({
         id: generateId(),
         in_reply_to: routing.inReplyTo,
         kind: 'chat',
-        platform_id: routing.platformId,
-        channel_type: routing.channelType,
-        thread_id: routing.threadId,
+        platform_id: platformId,
+        channel_type: channelType,
+        thread_id: threadId,
         content: JSON.stringify({ text: scratchpad }),
       });
       return;
