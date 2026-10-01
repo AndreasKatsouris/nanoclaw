@@ -164,9 +164,11 @@ reading values. Before keeping or overwriting a record, setup rechecks its
 ownership and rules and stops if they no longer match. Broker refresh may continue during login; a change to the broker's
 client binding or the secrets' rules stops setup.
 
-Native backends and custom/keyless HTTPS endpoints on port 443 are supported.
-Use a DNS name and TLS for local models; plaintext HTTP endpoints fail during
-setup. Follow the OpenCode skill to restart the host and test a real reply.
+Native backends and keyless or custom HTTPS endpoints on port 443 are supported.
+Setup refuses plain HTTP, other ports, IP addresses and private names such as
+`*.home.arpa`, because Iron trusts only public certificates. Setup adds the model
+host to Iron's allowlist.
+Follow the OpenCode skill to restart the host and test a real reply.
 
 ## Remove
 
