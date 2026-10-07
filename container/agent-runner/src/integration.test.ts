@@ -91,6 +91,32 @@ describe('poll loop integration', () => {
 
     await loopPromise.catch(() => {});
   });
+
+  it('should abort an active query and clear the session when /clear arrives mid-query', async () => {
+    getOutboundDb()
+      .prepare(`INSERT INTO session_state (key, value, updated_at) VALUES ('sdk_session_id', 'old-session', '')`)
+      .run();
+    insertMessage('m1', { sender: 'Alice', text: 'Hello' }, { platformId: 'chan-1', channelType: 'discord' });
+
+    const provider = new MockProvider({}, () => '<message to="discord-test">Hi</message>');
+    const controller = new AbortController();
+    const loopPromise = runPollLoopWithTimeout(provider, controller.signal, 4000);
+
+    // Wait for the first reply — the mock query then stays open for follow-ups.
+    await waitFor(() => getUndeliveredMessages().length > 0, 2000);
+    insertMessage('m-clear', { sender: 'Alice', text: '/clear' }, { platformId: 'chan-1', channelType: 'discord' });
+
+    await waitFor(
+      () => getUndeliveredMessages().some((m) => JSON.parse(m.content).text === 'Session cleared.'),
+      3000,
+    );
+    controller.abort();
+
+    const stored = getOutboundDb().prepare(`SELECT value FROM session_state WHERE key = 'sdk_session_id'`).get();
+    expect(stored).toBeNull();
+
+    await loopPromise.catch(() => {});
+  });
 });
 
 // Helper: run poll loop until aborted or timeout

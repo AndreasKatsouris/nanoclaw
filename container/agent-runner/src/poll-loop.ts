@@ -259,11 +259,21 @@ async function processQuery(
     // everything. Filtering on thread_id here caused deadlocks when the
     // initial batch and follow-ups had mismatched thread_ids (e.g. a
     // host-generated welcome trigger with null thread vs a Discord DM reply).
-    const newMessages = getPendingMessages().filter((m) => {
-      if (m.kind === 'system') return false;
-      if ((m.kind === 'chat' || m.kind === 'chat-sdk') && isClearCommand(m)) return false;
-      return true;
-    });
+    const pending = getPendingMessages();
+
+    // /clear needs a fresh query, so abort this one and let the outer loop
+    // handle it. Waiting for the query to end on its own deadlocks when the
+    // session is wedged (e.g. "Prompt is too long" on every push) — the
+    // query never closes, so /clear never runs, which is exactly when it's
+    // needed. Leave everything pending; the outer loop picks it all up.
+    if (pending.some((m) => (m.kind === 'chat' || m.kind === 'chat-sdk') && isClearCommand(m))) {
+      log('/clear received during active query — aborting query');
+      done = true;
+      query.abort();
+      return;
+    }
+
+    const newMessages = pending.filter((m) => m.kind !== 'system');
     if (newMessages.length > 0) {
       const newIds = newMessages.map((m) => m.id);
       markProcessing(newIds);

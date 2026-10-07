@@ -331,6 +331,9 @@ export class ClaudeProvider implements AgentProvider {
       abort: () => {
         aborted = true;
         stream.end();
+        // Stop an in-flight turn too, so abort doesn't wait for the next
+        // SDK message (which could be minutes away mid tool call).
+        sdkResult.interrupt().catch(() => {});
       },
     };
   }
